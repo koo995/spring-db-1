@@ -1,17 +1,28 @@
 package com.example.db1.repository;
 
-import com.example.db1.connection.DBConnectionUtil;
 import com.example.db1.domain.Member;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.jdbc.support.JdbcUtils;
 
+import javax.sql.DataSource;
 import java.sql.*;
 import java.util.NoSuchElementException;
 
 /**
- * jdbc - DriverManager 를 이용한 회원 저장소
+ * jdbc - DataSource 사용, jdbcUtils 사용
  */
 @Slf4j
 public class MemberRepositoryV0 {
+
+    /**
+     * 외부에서 DataSource 를 주입받아서 사용한다. 이제 직접 만든 DBConnectionUtil 를 사용하지 않아도 된다.
+     * DataSource 는 스프링이 제공하는 인터페이스이다. DriverManagerDataSource 에서 HikariDataSource 로 변경하면 코드 변경이 필요없다.
+     */
+    private final DataSource dataSource;
+
+    public MemberRepositoryV0(DataSource dataSource) {
+        this.dataSource = dataSource;
+    }
 
     public void update(String memberId, int money) throws SQLException {
         String sql = "update member set money=? where member_id=?";
@@ -129,32 +140,20 @@ public class MemberRepositoryV0 {
         }
     }
 
-    private static Connection getConnection() {
-        return DBConnectionUtil.getConnection();
+    private Connection getConnection() throws SQLException {
+        Connection con = dataSource.getConnection();
+        log.info("get connection={}, class={}", con, con.getClass());
+        return con;
     }
 
     private void close(Connection con, Statement stmt, ResultSet rs) {
-        if (rs != null) {
-            try {
-                rs.close();
-            } catch (SQLException e) {
-                log.error("rs close error", e);
-            }
-        }
-
-        if (stmt != null) {
-            try {
-                stmt.close();
-            } catch (SQLException e) {
-                log.error("stmt close error", e);
-            }}
-
-        if (con != null) {
-            try {
-                con.close();
-            } catch (SQLException e) {
-                log.error("connection close error", e);
-            }
-        }
+        /**
+         * 훨씬 더 잘 짜놨다.
+         * 스프링은 JDBC 를 편리하게 다룰 수 있는 JdbcUtils 를 제공한다.
+         * 더 편리하게 커넥션을 닫을 수 있다.
+         */
+        JdbcUtils.closeResultSet(rs);
+        JdbcUtils.closeStatement(stmt);
+        JdbcUtils.closeConnection(con);
     }
 }
