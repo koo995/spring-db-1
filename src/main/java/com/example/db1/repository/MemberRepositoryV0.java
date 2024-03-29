@@ -5,12 +5,55 @@ import com.example.db1.domain.Member;
 import lombok.extern.slf4j.Slf4j;
 
 import java.sql.*;
+import java.util.NoSuchElementException;
 
 /**
  * jdbc - DriverManager 를 이용한 회원 저장소
  */
 @Slf4j
 public class MemberRepositoryV0 {
+
+    public void update(String memberId, int money) throws SQLException {
+        String sql = "update member set money=? where member_id=?";
+
+        Connection con = null;
+        PreparedStatement pstmt = null;
+
+        try {
+            con = getConnection();
+            pstmt = con.prepareStatement(sql);
+            pstmt.setInt(1, money);
+            pstmt.setString(2, memberId);
+            int resultSize = pstmt.executeUpdate();
+            log.info("resultSize={}", resultSize);
+        } catch (SQLException e) {
+            log.error("db error", e);
+            throw e;
+        } finally {
+            close(con, pstmt, null);
+        }
+
+    }
+
+    public void delete(String memberId) throws SQLException {
+        String sql = "delete from member where member_id=?";
+
+        Connection con = null;
+        PreparedStatement pstmt = null;
+
+        try {
+            con = getConnection();
+            pstmt = con.prepareStatement(sql);
+            pstmt.setString(1, memberId);
+            pstmt.executeUpdate();
+        } catch (SQLException e) {
+            log.error("db error", e);
+            throw e;
+        } finally {
+            close(con, pstmt, null);
+        }
+
+    }
 
     public Member findById(String memberId) throws SQLException {
         String sql = "select * from member where member_id = ?";
@@ -34,8 +77,9 @@ public class MemberRepositoryV0 {
              */
             if (rs.next()) {
                 return new Member(rs.getString("member_id"), rs.getInt("money"));
+            }else {
+                throw new NoSuchElementException("member not found memberId=" + memberId);
             }
-            return null;
         } catch (SQLException e) {
             log.error("db error", e);
             throw e;
