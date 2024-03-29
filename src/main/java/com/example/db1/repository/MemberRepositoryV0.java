@@ -12,6 +12,38 @@ import java.sql.*;
 @Slf4j
 public class MemberRepositoryV0 {
 
+    public Member findById(String memberId) throws SQLException {
+        String sql = "select * from member where member_id = ?";
+
+        Connection con = null;
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+
+        try {
+            con = getConnection();
+            pstmt = con.prepareStatement(sql);
+            pstmt.setString(1, memberId);
+            /**
+             * executeQuery 는 select 할 때 사용한다.
+             * rs 는 결과를 담는 객체이다.
+             */
+            rs = pstmt.executeQuery();
+            /**
+             * rs.next() 는 그 안에 커서가 존재하기 때문에 처음에는 아무것도 안가르킨다.
+             * 데이터가 여러개인 경우 while 문을 사용한다.
+             */
+            if (rs.next()) {
+                return new Member(rs.getString("member_id"), rs.getInt("money"));
+            }
+            return null;
+        } catch (SQLException e) {
+            log.error("db error", e);
+            throw e;
+        } finally {
+            close(con, pstmt, rs);
+        }
+    }
+
     public Member save(Member member) throws SQLException {
         String sql = "insert into member (member_id, money) values (?, ?)";
 
