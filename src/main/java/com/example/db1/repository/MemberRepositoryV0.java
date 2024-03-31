@@ -9,7 +9,7 @@ import java.sql.*;
 import java.util.NoSuchElementException;
 
 /**
- * jdbc - DataSource 사용, jdbcUtils 사용
+ * jdbc - ConnectionParam 을 넘긴다.
  */
 @Slf4j
 public class MemberRepositoryV0 {
@@ -24,14 +24,12 @@ public class MemberRepositoryV0 {
         this.dataSource = dataSource;
     }
 
-    public void update(String memberId, int money) throws SQLException {
+    public void update(Connection con, String memberId, int money) throws SQLException {
         String sql = "update member set money=? where member_id=?";
 
-        Connection con = null;
         PreparedStatement pstmt = null;
 
         try {
-            con = getConnection();
             pstmt = con.prepareStatement(sql);
             pstmt.setInt(1, money);
             pstmt.setString(2, memberId);
@@ -41,7 +39,7 @@ public class MemberRepositoryV0 {
             log.error("db error", e);
             throw e;
         } finally {
-            close(con, pstmt, null);
+            JdbcUtils.closeStatement(pstmt);
         }
 
     }
@@ -64,6 +62,48 @@ public class MemberRepositoryV0 {
             close(con, pstmt, null);
         }
 
+    }
+
+    public Member findById(Connection con, String memberId) throws SQLException {
+        String sql = "select * from member where member_id = ?";
+
+        /**
+         * 이 녀석을 지워야 한다. 안그러면 새로운 커넥션이 생겨서 새로운 세션이 적용된다.
+         */
+//        Connection con = null;
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+
+        try {
+//            con = getConnection();
+            pstmt = con.prepareStatement(sql);
+            pstmt.setString(1, memberId);
+            /**
+             * executeQuery 는 select 할 때 사용한다.
+             * rs 는 결과를 담는 객체이다.
+             */
+            rs = pstmt.executeQuery();
+            /**
+             * rs.next() 는 그 안에 커서가 존재하기 때문에 처음에는 아무것도 안가르킨다.
+             * 데이터가 여러개인 경우 while 문을 사용한다.
+             */
+            if (rs.next()) {
+                return new Member(rs.getString("member_id"), rs.getInt("money"));
+            }else {
+                throw new NoSuchElementException("member not found memberId=" + memberId);
+            }
+        } catch (SQLException e) {
+            log.error("db error", e);
+            throw e;
+        } finally {
+            /**
+             * 여기서 커넥션을 닫아버리면 안된다. 그러면 그 커넥션은 여기서 끝나는 것이다.
+             *  서비스계층에서 커넥션을 시작해서 넘길것이고 서비스계층에서 끝내야 한다. 여기서 끝내면 안된다.
+             */
+            JdbcUtils.closeResultSet(rs);
+            JdbcUtils.closeStatement(pstmt);
+//            JdbcUtils.closeConnection(con);
+        }
     }
 
     public Member findById(String memberId) throws SQLException {

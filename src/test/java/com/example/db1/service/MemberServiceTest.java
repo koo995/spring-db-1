@@ -2,6 +2,7 @@ package com.example.db1.service;
 
 import com.example.db1.domain.Member;
 import com.example.db1.repository.MemberRepositoryV0;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -17,6 +18,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /**
  * 기본 동작, 트랜잭션이 없어서 문제 발생
  */
+@Slf4j
 class MemberServiceTest {
 
     public static final String MEMBER_A = "memberA";
@@ -28,12 +30,13 @@ class MemberServiceTest {
 
     /**
      * DriverManagerDataSource 을 간단하게 써보자. 커넥션 풀을 사용 안함
+     * 트랜잭션 -커넥션 파라미터 전달 방식 동기화(같은 것을 쓴다는 것)
      */
     @BeforeEach
     void before() {
         DriverManagerDataSource dataSource = new DriverManagerDataSource(URL, USERNAME, PASSWORD);
         memberRepository = new MemberRepositoryV0(dataSource);
-        memberService = new MemberServiceV0(memberRepository);
+        memberService = new MemberServiceV0(dataSource, memberRepository);
     }
 
     @AfterEach
@@ -52,8 +55,13 @@ class MemberServiceTest {
         memberRepository.save(memberA);
         memberRepository.save(memberB);
 
-        //when
+        /**
+         * given 과 then 에 있는 커넥션과 다른 커넥션을 쓸것이다.
+         * 그리고 로그가 안남는 이유는... DriverManagerDataSource 이 녀석을 통해 바로 커넥션을 가져왔기 때문
+         */
+        log.info("START TX");
         memberService.accountTransfer(memberA.getMemberId(), memberB.getMemberId(), 2000);
+        log.info("END TX");
 
         //then
         Member findMemberA = memberRepository.findById(memberA.getMemberId());
@@ -75,10 +83,13 @@ class MemberServiceTest {
         assertThatThrownBy(() -> memberService.accountTransfer(memberA.getMemberId(), memberEx.getMemberId(), 2000))
                 .isInstanceOf(IllegalStateException.class);
 
-        //then
+        // then
         Member findMemberA = memberRepository.findById(memberA.getMemberId());
         Member findMemberB = memberRepository.findById(memberEx.getMemberId());
-        assertThat(findMemberA.getMoney()).isEqualTo(8000);
+        /**
+         * 롤백을 해버려서 값이 그대로이다.
+         */
+        assertThat(findMemberA.getMoney()).isEqualTo(10000);
         assertThat(findMemberB.getMoney()).isEqualTo(10000);
     }
 
