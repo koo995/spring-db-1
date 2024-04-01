@@ -7,7 +7,9 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
+import org.springframework.transaction.PlatformTransactionManager;
 
 import java.sql.SQLException;
 
@@ -16,7 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * 기본 동작, 트랜잭션이 없어서 문제 발생
+ * 트랜잭션 - 트랜잭션 매니저
  */
 @Slf4j
 class MemberServiceTest {
@@ -28,15 +30,16 @@ class MemberServiceTest {
     private MemberRepositoryV0 memberRepository;
     private MemberServiceV0 memberService;
 
-    /**
-     * DriverManagerDataSource 을 간단하게 써보자. 커넥션 풀을 사용 안함
-     * 트랜잭션 -커넥션 파라미터 전달 방식 동기화(같은 것을 쓴다는 것)
-     */
+
     @BeforeEach
     void before() {
         DriverManagerDataSource dataSource = new DriverManagerDataSource(URL, USERNAME, PASSWORD);
         memberRepository = new MemberRepositoryV0(dataSource);
-        memberService = new MemberServiceV0(dataSource, memberRepository);
+        /**
+         * transactionManager 는 dataSource 를 주입받아야 한다. 그래야 커넥션을 생성할 수 잇다.
+         */
+        PlatformTransactionManager transactionManager = new DataSourceTransactionManager(dataSource);
+        memberService = new MemberServiceV0(transactionManager, memberRepository);
     }
 
     @AfterEach
