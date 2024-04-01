@@ -4,13 +4,17 @@ import com.example.db1.domain.Member;
 import com.example.db1.repository.MemberRepositoryV0;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.transaction.PlatformTransactionManager;
 
+import javax.sql.DataSource;
 import java.sql.SQLException;
 
 import static com.example.db1.connection.ConnectionConst.*;
@@ -18,28 +22,46 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * 트랜잭션 - 트랜잭션 매니저
+ * 트랜잭션 - @Transactional AOP
+ * 스프링이 제공하는 AOP을 쓰고 싶은데, 스프링 컨테이너를 안쓰면 @Transactional 이 동작하지 않는다.
+ * @SpringBootTest 이 있으면 테스트시 스프링 부트를 통해 스프링 컨테이너를 생성한다. 그리고 @Autowired 를 통해 의존성을 주입받을 수 있다.
  */
 @Slf4j
+@SpringBootTest
 class MemberServiceTest {
 
     public static final String MEMBER_A = "memberA";
     public static final String MEMBER_B = "memberB";
     public static final String MEMBER_EX = "ex";
 
+    @Autowired
     private MemberRepositoryV0 memberRepository;
+    @Autowired
     private MemberServiceV0 memberService;
 
-
-    @BeforeEach
-    void before() {
-        DriverManagerDataSource dataSource = new DriverManagerDataSource(URL, USERNAME, PASSWORD);
-        memberRepository = new MemberRepositoryV0(dataSource);
-        /**
-         * transactionManager 는 dataSource 를 주입받아야 한다. 그래야 커넥션을 생성할 수 잇다.
-         */
-        PlatformTransactionManager transactionManager = new DataSourceTransactionManager(dataSource);
-        memberService = new MemberServiceV0(transactionManager, memberRepository);
+    /**
+     * 스프링 컨테이너에 빈을 넣어줘야하고 조립을 해줘야한다.
+     * @TestConfiguration 은 테스트 안에서 내부 설정 클래스를 만들어서 사용하면서 이 에노테이션을 붙이면,
+     * 스프링 부트가 자동으로 만들어주는 빈들에 추가로 필요한 스프링 빈들을 등록하고 테스트를 수행할 수 있다.
+     */
+    @TestConfiguration
+    static class TestConfig {
+        @Bean
+        DataSource dataSource() {
+            return new DriverManagerDataSource(URL, USERNAME, PASSWORD);
+        }
+        @Bean
+        PlatformTransactionManager transactionManager() {
+            return new DataSourceTransactionManager(dataSource());
+        }
+        @Bean
+        MemberRepositoryV0 memberRepository(DataSource dataSource) {
+            return new MemberRepositoryV0(dataSource);
+        }
+        @Bean
+        MemberServiceV0 memberService(MemberRepositoryV0 memberRepository) {
+            return new MemberServiceV0(memberRepository);
+        }
     }
 
     @AfterEach
@@ -47,6 +69,14 @@ class MemberServiceTest {
         memberRepository.delete(MEMBER_A);
         memberRepository.delete(MEMBER_B);
         memberRepository.delete(MEMBER_EX);
+    }
+
+    @Test
+    void AopCheck() {
+        // memberRepository class=class com.example.db1.repository.MemberRepositoryV0
+        log.info("memberRepository class={}", memberRepository.getClass());
+        // memberService class=class com.example.db1.service.MemberServiceV0$$SpringCGLIB$$0
+        log.info("memberService class={}", memberService.getClass());
     }
 
     @Test
